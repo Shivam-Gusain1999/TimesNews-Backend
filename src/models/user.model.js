@@ -1,37 +1,37 @@
 import mongoose, { Schema } from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { ROLE_VALUES, ROLES } from "../constants/roles.constant.js"; 
+import { ROLE_VALUES, ROLES } from "../constants/roles.constant.js";
 
 const userSchema = new Schema(
   {
-    // 1. Identity Fields (Search Fast)
+    // 1. Identity Fields
     username: {
       type: String,
       required: [true, "Username is required"],
       unique: true,
       lowercase: true,
       trim: true,
-      index: true // Database mein dhoondne mein aasaani hogi
+      index: true
     },
     email: {
       type: String,
       required: [true, "Email is required"],
       unique: true,
       lowercase: true,
-      trim: true, 
+      trim: true,
     },
     fullName: {
       type: String,
       required: [true, "Full name is required"],
-      trim: true, 
+      trim: true,
       index: true
     },
-    
+
     password: {
       type: String,
-      required: [true, "Password is required"], 
-      select: false // API response mein password kabhi nahi dikhega
+      required: [true, "Password is required"],
+      select: false // Exclude password from query results by default
     },
 
 
@@ -40,42 +40,48 @@ const userSchema = new Schema(
       default: null
     },
     coverImage: {
-      type: String, // Cloudinary URL (Profile ka banner)
+      type: String, // Cloudinary URL
     },
     bio: {
-        type: String,
-        maxLength: [250, "Bio cannot exceed 250 characters"],
-        default: ""
+      type: String,
+      maxLength: [250, "Bio cannot exceed 250 characters"],
+      default: ""
     },
 
-    // 4. Role Management (Admin vs Reporter vs User)
+    // 4. Role Management
     role: {
-        type: String,
-        enum: ROLE_VALUES, // Sirf ['admin', 'editor', 'reporter', 'user'] allowed hai
-        default: ROLES.USER
+      type: String,
+      enum: ROLE_VALUES,
+      default: ROLES.USER
     },
 
-    // 5. User History (News Specific)
+    // 4.5 Block/Ban Status
+    isBlocked: {
+      type: Boolean,
+      default: false
+    },
+
+    // 5. User History
     bookmarks: [
       {
         type: Schema.Types.ObjectId,
-        ref: "Article" // Kaunsi news save ki hai
+        ref: "Article"
       }
     ],
     readingHistory: [
       {
         type: Schema.Types.ObjectId,
-        ref: "Article" // Kaunsi news padhi hai (Recommendation ke liye)
+        ref: "Article"
       }
     ],
 
-    // 6. Refresh Token (Login tikaye rakhne ke liye)
+    // 6. Refresh Token for managing sessions
     refreshToken: {
       type: String
     }
   },
   {
-    timestamps: true // createdAt aur updatedAt apne aap manage honge
+    timestamps: true
   }
 );
 
@@ -83,23 +89,23 @@ const userSchema = new Schema(
 
 
 // 1. Password Encryption (Pre-save Hook)
-// Save hone se pehle password ko hash (encrypt) karega
-userSchema.pre("save", async function() {
+// Hash the password before saving to the database
+userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
-  
-  // 10 Rounds Salt (Industry Standard)
+
+  // Utilize 10 salt rounds for hashing
   this.password = await bcrypt.hash(this.password, 10);
 
 });
 
-// 2. Password Checker Method
-// Login ke waqt check karega ki password sahi hai ya nahi
+// 2. Password Verification Method
+// Compare raw password with the hashed password 
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
-// 3. Access Token Generator (Short Lived - 15 mins)
-// Ye token har API request ke saath bheja jayega
+// 3. Access Token Generator
+// Included with every API request
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
@@ -116,8 +122,8 @@ userSchema.methods.generateAccessToken = function () {
   );
 };
 
-// 4. Refresh Token Generator (Long Lived - 10 days)
-// Ye tab kaam aayega jab Access Token expire ho jayega
+// 4. Refresh Token Generator
+// Used to issue new access tokens upon expiration
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {

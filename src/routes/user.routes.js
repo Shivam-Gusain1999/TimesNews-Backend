@@ -2,25 +2,27 @@ import { Router } from "express";
 import { changeCurrentPassword, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
+import { loginSchema, registerSchema } from "../validators/user.validator.js";
 
 const router = Router();
 
-router.route("/register").post(
+router.route("/register").post(validate(registerSchema),
     upload.fields([
         {
-            name: "avatar", // Frontend field ka naam same hona chahiye
+            name: "avatar", // Field name must match the frontend
             maxCount: 1
         },
         {
-            name: "coverImage", // Frontend se 'coverImage'
+            name: "coverImage", // Field 'coverImage' from the frontend
             maxCount: 1
         }
     ]),
-   
+
     registerUser
 );
 
-router.route("/login").post(loginUser)
+router.route("/login").post(validate(loginSchema), loginUser)
 router.route("/logout").post(verifyJWT, logoutUser)
 router.route("/refresh-token").post(refreshAccessToken)
 router.route("/change-password").post(verifyJWT, changeCurrentPassword)

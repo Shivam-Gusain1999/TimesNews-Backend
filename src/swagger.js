@@ -2,19 +2,19 @@ import swaggerJsdoc from "swagger-jsdoc";
 
 const options = {
   definition: {
-    openapi: "3.0.0", // Ye Swagger ka standard version hai
+    openapi: "3.0.0", // Standard Swagger OpenAPI version
     info: {
-      title: "Times News Pro API", // Tumhare Project ka naam
+      title: "Times News Pro API", // Project Title
       version: "1.0.0",
-      description: "API Documentation for News Portal Application", // Choti si detail
+      description: "API Documentation for News Portal Application", // Brief summary
       contact: {
-        name: "Shivam Gusain", // Apna naam likho, Senior lagoge!
+        name: "Shivam Gusain", // Lead Developer
         email: "shivam@example.com",
       },
     },
     servers: [
       {
-        url: "http://localhost:4000/api/v1", // Hamari base URL
+        url: "http://localhost:4000/api/v1", // Primary base URL
         description: "Development Server",
       },
     ],
@@ -28,8 +28,8 @@ const options = {
       },
     },
   },
-  // Ye sabse important line hai: Swagger kahan dhoondega APIs ko?
-  apis: ["./src/routes/*.js"], 
+  // Directory patterns where Swagger will scan for annotated APIs
+  apis: ["./src/routes/*.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

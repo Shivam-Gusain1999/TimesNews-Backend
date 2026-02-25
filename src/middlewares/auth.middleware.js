@@ -10,19 +10,19 @@ import { PERMISSIONS, ROLES } from "../constants/roles.constant.js";
 const verifyJWT = asyncHandler(async (req, res, next) => {
     try {
         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
-        
+
         if (!token) {
             throw new ApiError(401, "Unauthorized request");
         }
-    
+
         const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    
+
         const user = await User.findById(decodedToken?._id).select("-password -refreshToken");
-    
+
         if (!user) {
             throw new ApiError(401, "Invalid Access Token");
         }
-    
+
         req.user = user;
         next();
     } catch (error) {
@@ -34,9 +34,12 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 
 const verifyAdmin = asyncHandler(async (req, res, next) => {
     // req.user verifyJWT se aa raha hai
-    if (req.user.role !== ROLES.ADMIN) { 
+    console.log("verifyAdmin checking user:", req.user._id, "role:", req.user.role);
+    if (req.user.role !== ROLES.ADMIN) {
+        console.log("verifyAdmin failed: User is", req.user.role);
         throw new ApiError(403, "Access Denied! Admin rights required.");
     }
+    console.log("verifyAdmin passed");
     next();
 });
 
@@ -50,4 +53,15 @@ const verifyPublisher = asyncHandler(async (req, res, next) => {
     next();
 });
 
-export { verifyJWT, verifyAdmin, verifyPublisher };
+//  Verify Staff (Admin + Editor + Reporter allow karega - Dashboard Access)
+const verifyStaff = asyncHandler(async (req, res, next) => {
+    // Allowed Roles: Admin, Editor, Reporter
+    const allowedRoles = [ROLES.ADMIN, ROLES.EDITOR, ROLES.REPORTER];
+
+    if (!allowedRoles.includes(req.user.role)) {
+        throw new ApiError(403, "Access Denied! Staff rights required.");
+    }
+    next();
+});
+
+export { verifyJWT, verifyAdmin, verifyPublisher, verifyStaff };

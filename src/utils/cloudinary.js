@@ -1,11 +1,11 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 
-// Configuration (.env se load hoga)
-cloudinary.config({ 
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
-  api_key: process.env.CLOUDINARY_API_KEY, 
-  api_secret: process.env.CLOUDINARY_API_SECRET 
+// Load configuration from environment variables
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 
@@ -22,39 +22,38 @@ const uploadOnCloudinary = async (localFilePath, folderName = "others") => {
         });
 
         // File uploaded successfully -> Delete local file
-        // (Callback use kiya taaki server block na ho)
         fs.unlink(localFilePath, (err) => {
-            if (err) console.log("Local file deleted");
+            if (err) console.error("Error deleting local file after upload:", err.message);
         });
-        
+
         return response;
 
     } catch (error) {
         // Upload Fail -> Delete local file (Clean up)
         fs.unlink(localFilePath, (err) => {
-             if (err) console.log("Error deleting local file after fail");
+            if (err) console.error("Error deleting local file after failed upload:", err.message);
         });
         return null;
     }
 }
 
 
-// 2. DELETE FUNCTION (Cloudinary se hatana)
+// 2. DELETE FUNCTION (Remove asset from Cloudinary)
 
 const deleteFromCloudinary = async (fileUrlOrPublicId) => {
     try {
         if (!fileUrlOrPublicId) return null;
 
-        // Step A: Agar URL aaya hai, to Public ID nikalo
+        // Step A: Extract Public ID if a full URL is provided
         let publicId = fileUrlOrPublicId;
-        
+
         if (fileUrlOrPublicId.includes("http")) {
-             publicId = extractPublicIdFromUrl(fileUrlOrPublicId);
+            publicId = extractPublicIdFromUrl(fileUrlOrPublicId);
         }
 
         if (!publicId) {
-             console.log("Could not extract publicId");
-             return null;
+            console.log("Could not extract publicId");
+            return null;
         }
 
         // Step B: Delete from Cloudinary
@@ -67,36 +66,35 @@ const deleteFromCloudinary = async (fileUrlOrPublicId) => {
     }
 }
 
-// 3. HELPER: URL se Public ID nikaalne ka logic
+// 3. HELPER: Logic to extract Public ID from a full secure URL
 
 const extractPublicIdFromUrl = (url) => {
     try {
-        
-        // 1. URL ko '/' se todo
+
+        // 1. Split the URL by '/'
         const parts = url.split('/');
-        
-        // 2. 'upload' keyword dhundo
+
+        // 2. Locate the 'upload' keyword
         const uploadIndex = parts.findIndex(part => part === "upload");
-        
+
         if (uploadIndex === -1) return null; // Invalid URL
-        
-        // 3. 'upload' ke baad waale hisse uthao (version v123... ko chod kar)
-        // parts array mein se humein chahiye: ['times-news', 'avatars', 'myphoto.jpg']
-        
-        // uploadIndex + 1 usually version hota hai (e.g., v172...)
-        // Hum check karenge agar wo 'v' se start hota hai to skip karenge
-        
+
+        // 3. Extract parts following 'upload', excluding the version identifier
+        // Expected parts slice: ['folder_name', 'subfolder', 'filename.jpg']
+
+        // Skip the version segment (e.g., v172...) starting with 'v' if present
+
         let startIndex = uploadIndex + 1;
         if (parts[startIndex].startsWith('v')) {
             startIndex++;
         }
-        
+
         const relevantParts = parts.slice(startIndex); // ['times-news', 'avatars', 'myphoto.jpg']
-        
-        // 4. Join wapis karo aur extension (.jpg) hatao
-        const publicIdWithExtension = relevantParts.join('/'); 
+
+        // 4. Rejoin the parts and omit the file extension (.jpg/.png)
+        const publicIdWithExtension = relevantParts.join('/');
         const publicId = publicIdWithExtension.split('.')[0];
-        
+
         return publicId; // Output: times-news/avatars/myphoto
 
     } catch (error) {

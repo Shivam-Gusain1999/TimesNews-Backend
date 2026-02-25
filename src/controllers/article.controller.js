@@ -17,20 +17,19 @@ const createArticle = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Title, Content and Category are required");
     }
 
-    // Category Exist Karti Hai?
-    // Note: Hum yahan bhi check kar rahe hain ki Category 'Archived' toh nahi hai
+    // Ensure the mapped category is active, not archived
     const category = await Category.findOne({ _id: categoryId, isArchived: false });
     if (!category) {
         throw new ApiError(404, "Invalid or Archived Category");
     }
 
     // Slug Generation (SEO Friendly & Unique)
-    // Regex: Special chars hata kar dash (-) lagayega aur end mein Timestamp jodeka
+    // Strip special characters, spaces, and append a timestamp
     const slug = title
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-") // Sirf a-z aur 0-9 rakho
-        .replace(/^-+|-+$/g, "")     // Start/End ke dash hatao
-        + "-" + Date.now();          // Unique Timestamp
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        + "-" + Date.now();
 
     // Image Upload Handling
     const thumbnailLocalPath = req.file?.path;
@@ -44,7 +43,7 @@ const createArticle = asyncHandler(async (req, res) => {
     }
 
     // Role Based Status (RBAC)
-    // Admin/Editor -> PUBLISHED | User -> DRAFT
+    // Admin/Editor publish directly, Users remain explicitly in DRAFT
     let status = "DRAFT";
     if (req.user && PERMISSIONS.CAN_PUBLISH.includes(req.user.role)) {
         status = "PUBLISHED";
@@ -58,7 +57,7 @@ const createArticle = asyncHandler(async (req, res) => {
         thumbnail: thumbnail.url,
         category: categoryId,
         author: req.user._id,
-        tags: tags ? tags.split(",") : [], // "Tech,News" -> ["Tech", "News"]
+        tags: tags ? tags.split(",") : [],
         isFeatured: isFeatured || false,
         status,
         isArchived: false // Default active
@@ -75,20 +74,24 @@ const createArticle = asyncHandler(async (req, res) => {
 const getAllArticles = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, search, category } = req.query;
 
-    // Base Query: Sirf Published aur Active articles dikhao
-    const query = { 
-        status: "PUBLISHED", 
-        isArchived: false 
+    // Base Query: Only fetch published and active articles
+    const query = {
+        status: "PUBLISHED",
+        isArchived: false
     };
 
-    // 1. Search Logic (Title mein dhoondo)
+    // 1. Search Logic (Title match)
     if (search) {
-        query.title = { $regex: search, $options: "i" }; // 'i' means case-insensitive
+        query.title = { $regex: search, $options: "i" };
     }
 
-    // 2. Category Filter
+    // 2. Category Filter (search by slug first, then fall back to case-insensitive name)
     if (category) {
-        const categoryDoc = await Category.findOne({ slug: category, isArchived: false });
+        let categoryDoc = await Category.findOne({ slug: category, isArchived: false });
+        if (!categoryDoc) {
+            const nameFromSlug = category.replace(/-/g, ' ');
+            categoryDoc = await Category.findOne({ name: { $regex: new RegExp(`^${nameFromSlug}$`, 'i') }, isArchived: false });
+        }
         if (categoryDoc) {
             query.category = categoryDoc._id;
         }
@@ -98,18 +101,17 @@ const getAllArticles = asyncHandler(async (req, res) => {
     const options = {
         page: parseInt(page, 10),
         limit: parseInt(limit, 10),
-        sort: { createdAt: -1 }, // Latest pehle
+        sort: { createdAt: -1 },
         populate: [
-            { path: "author", select: "fullName username avatar" }, // Author details
-            { path: "category", select: "name slug" }               // Category details
+            { path: "author", select: "fullName username avatar" },
+            { path: "category", select: "name slug" }
         ]
     };
 
-    // Note: Agar tumne AggregatePaginate plugin lagaya hai toh hum aggregate use kar sakte hain,
-    // lekin simple find query zyada fast aur readable hai is case mein.
-    
+
+
     const skip = (options.page - 1) * options.limit;
-    
+
     const articles = await Article.find(query)
         .populate("author", "fullName username avatar")
         .populate("category", "name slug")
@@ -138,14 +140,12 @@ const getAllArticles = asyncHandler(async (req, res) => {
 const getArticleBySlug = asyncHandler(async (req, res) => {
     const { slug } = req.params;
 
-    // View Count Badhana (Optional feature, abhi simple rakha hai)
-    const article = await Article.findOneAndUpdate(
-        { slug, status: "PUBLISHED", isArchived: false },
-        { $inc: { views: 1 } }, // Views +1
-        { new: true }
+    // View Count Logic is now controlled via frontend
+    const article = await Article.findOne(
+        { slug, status: "PUBLISHED", isArchived: false }
     )
-    .populate("author", "fullName username bio avatar")
-    .populate("category", "name slug");
+        .populate("author", "fullName username bio avatar")
+        .populate("category", "name slug");
 
     if (!article) {
         throw new ApiError(404, "Article not found or has been archived");
@@ -165,17 +165,31 @@ const updateArticle = asyncHandler(async (req, res) => {
 
     const article = await Article.findById(articleId);
 
-    if (!article || article.isArchived) { // Archived articles update nahi honge
+    if (!article) {
         throw new ApiError(404, "Article not found");
     }
 
-    // Security Check: Kya ye wahi author hai ya Admin hai?
-    if (article.author.toString() !== req.user._id.toString() && req.user.role !== ROLES.ADMIN) {
-        throw new ApiError(403, "You are not authorized to edit this article");
+    // Note: Previously we blocked editing archived articles. 
+    // Now we allow it so Admins can restore them.
+
+    const isOwner = article.author.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === ROLES.ADMIN;
+    const isEditor = req.user.role === ROLES.EDITOR;
+    const isReporter = req.user.role === ROLES.REPORTER;
+
+    // Security Rules:
+    // 1. Admin & Editor: Can edit ANY article.
+    // 2. Reporter: Can edit ONLY their OWN article.
+
+    if (!isAdmin && !isEditor) {
+        // Must be owner
+        if (!isOwner) {
+            throw new ApiError(403, "You can only edit your own articles");
+        }
     }
 
-    // Image Handling: Agar nayi file aayi hai tabhi update karo
-    // Purani delete nahi kar rahe (Safety Backup)
+    // Image Handling: Upload replacement thumbnail if provided via Multer
+    // The previous asset remains in Cloudinary as a safety backup
     if (req.file?.path) {
         const newThumbnail = await uploadOnCloudinary(req.file.path);
         if (newThumbnail) {
@@ -188,9 +202,13 @@ const updateArticle = asyncHandler(async (req, res) => {
     if (content) article.content = content;
     if (categoryId) article.category = categoryId;
 
-    // Status Update (Sirf permitted roles ke liye)
+    // Status Update (Restricted based on roles)
     if (status && PERMISSIONS.CAN_PUBLISH.includes(req.user.role)) {
         article.status = status;
+        // If status is changed from ARCHIVED, make sure isArchived is false
+        if (status !== 'ARCHIVED') {
+            article.isArchived = false;
+        }
     }
 
     await article.save();
@@ -213,20 +231,192 @@ const deleteArticle = asyncHandler(async (req, res) => {
     }
 
     // Security Check
-    if (article.author.toString() !== req.user._id.toString() && req.user.role !== ROLES.ADMIN) {
-        throw new ApiError(403, "You are not authorized to delete this article");
+    // Admin: Can delete anything
+    // Editor: Can delete anything (as per "Editor... delete content")
+    // Reporter: CANNOT DELETE (even own). "Reporter... No Delete"
+
+    const isOwner = article.author.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === ROLES.ADMIN;
+    const isEditor = req.user.role === ROLES.EDITOR;
+
+    // Logic: 
+    // 1. Admin & Editor can delete ANY article.
+    // 2. Reporter cannot delete anything.
+    if (!isAdmin && !isEditor) {
+        throw new ApiError(403, "Access Denied! You are not authorized to delete articles.");
     }
 
     // SOFT DELETE LOGIC
-    // Hum record database se nahi uda rahe, bas chhupa rahe hain.
+    // Archive the article rather than a hard database deletion
     article.isArchived = true;
-    article.status = "ARCHIVED"; 
+    article.status = "ARCHIVED";
 
-    // Validation skip kiya kyunki hum bas status badal rahe hain
+    // Disable full validation on save since we are only manipulating the status
     await article.save({ validateBeforeSave: false });
 
     return res.status(200).json(
         new ApiResponse(200, {}, "Article moved to archive (Soft Deleted)")
+    );
+});
+
+
+
+// ============================================================================
+// 6. INCREMENT VIEW (Separate Endpoint)
+// ============================================================================
+const incrementArticleView = asyncHandler(async (req, res) => {
+    const { slug } = req.params;
+
+    await Article.findOneAndUpdate(
+        { slug, status: "PUBLISHED", isArchived: false },
+        { $inc: { views: 1 } }
+    );
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "View count incremented")
+    );
+});
+
+// ============================================================================
+// 7. GET ALL ARTICLES (ADMIN) - No Status Restrictions
+// ============================================================================
+const getAllArticlesAdmin = asyncHandler(async (req, res) => {
+    console.log("getAllArticlesAdmin called");
+    const { page = 1, limit = 10, search, status, category } = req.query;
+
+    const query = {};
+
+    // 1. Search Logic
+    if (search) {
+        query.title = { $regex: search, $options: "i" };
+    }
+
+    // 2. Status Filter
+    if (status) {
+        query.status = status;
+        if (status === 'ARCHIVED') {
+            query.isArchived = true;
+        }
+    }
+
+    // 3. Category Filter
+    if (category) {
+        query.category = category;
+    }
+
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        sort: { createdAt: -1 },
+        populate: [
+            { path: "author", select: "fullName username avatar" },
+            { path: "category", select: "name" }
+        ]
+    };
+
+    const skip = (options.page - 1) * options.limit;
+
+    const articles = await Article.find(query)
+        .populate("author", "fullName username avatar")
+        .populate("category", "name")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(options.limit);
+
+    const totalArticles = await Article.countDocuments(query);
+
+    return res.status(200).json(
+        new ApiResponse(200, {
+            articles,
+            pagination: {
+                total: totalArticles,
+                page: options.page,
+                limit: options.limit,
+                totalPages: Math.ceil(totalArticles / options.limit)
+            }
+        }, "Admin articles fetched successfully")
+    );
+});
+
+// ============================================================================
+// 8. BULK UPLOAD ARTICLES
+// ============================================================================
+const bulkUploadArticles = asyncHandler(async (req, res) => {
+    const { articles } = req.body;
+
+    if (!articles || !Array.isArray(articles) || articles.length === 0) {
+        throw new ApiError(400, "Invalid or empty articles array provided");
+    }
+
+    const results = {
+        successful: 0,
+        failed: 0,
+        errors: []
+    };
+
+    const isAdmin = req.user.role === ROLES.ADMIN;
+    const isEditor = req.user.role === ROLES.EDITOR;
+
+    if (!isAdmin && !isEditor) {
+        throw new ApiError(403, "You do not have permission to bulk upload articles");
+    }
+
+    for (const item of articles) {
+        try {
+            const { title, content, category, tags, status, isFeatured, thumbnail } = item;
+
+            if (!title || !category) {
+                throw new Error("Missing required fields: Title and Category are mandatory.");
+            }
+
+            // Clean input
+            const safeTitle = title.trim();
+            const safeCategory = category.trim();
+
+            // Find category by name (case-insensitive) or slug
+            let categoryDoc = await Category.findOne({
+                $or: [
+                    { name: { $regex: new RegExp(`^${safeCategory}$`, 'i') } },
+                    { slug: safeCategory.toLowerCase().replace(/[^a-z0-9]+/g, "-") }
+                ],
+                isArchived: false
+            });
+
+            if (!categoryDoc) {
+                throw new Error(`Category '${safeCategory}' not found in database.`);
+            }
+
+            const slug = safeTitle
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "")
+                + "-" + Date.now() + Math.floor(Math.random() * 1000);
+
+            // Use a rigorous fallback for images or content if they are missing in the CSV
+            const defaultThumbnail = "https://res.cloudinary.com/dpv0ukspz/image/upload/v1727783301/placeholder-image_qzxw1m.png";
+
+            await Article.create({
+                title: safeTitle,
+                content: content || `<p>Coming soon...</p>`,
+                slug,
+                thumbnail: thumbnail || defaultThumbnail,
+                category: categoryDoc._id,
+                author: req.user._id,
+                tags: tags ? tags.split(",").map(t => t.trim()) : [],
+                isFeatured: String(isFeatured).toLowerCase() === "true" || isFeatured === "1",
+                status: status && PERMISSIONS.CAN_PUBLISH.includes(req.user.role) ? status : "DRAFT",
+                isArchived: false
+            });
+
+            results.successful++;
+        } catch (error) {
+            results.failed++;
+            results.errors.push({ title: item.title, error: error.message });
+        }
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, results, `Bulk upload complete. ${results.successful} created, ${results.failed} failed.`)
     );
 });
 
@@ -235,5 +425,8 @@ export {
     getAllArticles,
     getArticleBySlug,
     updateArticle,
-    deleteArticle
+    deleteArticle,
+    incrementArticleView,
+    getAllArticlesAdmin,
+    bulkUploadArticles
 };
