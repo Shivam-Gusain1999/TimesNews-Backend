@@ -89,7 +89,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // Success! 
     return res.status(201).json(
-        new ApiResponse(200, createdUser, "User registered Successfully")
+        new ApiResponse(201, createdUser, "User registered successfully")
     );
 });
 
@@ -317,11 +317,8 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "Account details updated successfully"))
 })
 
-// UPDATE USER AVATAR 
-
+// Update User Avatar
 const updateUserAvatar = asyncHandler(async (req, res) => {
-
-    // 1. Multer se local file path nikaalo
     const avatarLocalPath = req.file?.path;
 
     if (!avatarLocalPath) {
@@ -335,13 +332,18 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Error while uploading avatar on Cloudinary");
     }
 
-    // Store the old avatar URL for deletion
+    // Store the old avatar URL before update for cleanup
     const oldAvatarUrl = req.user?.avatar;
 
-    // Update the avatar URL in the database
+    // Persist the new avatar URL in the database
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: { avatar: avatar.url } },
+        { new: true }
+    ).select("-password -refreshToken");
 
-    // Delete the old avatar from Cloudinary
-    if (oldAvatarUrl) {
+    // Delete the old avatar from Cloudinary to free storage
+    if (oldAvatarUrl && !oldAvatarUrl.includes("ui-avatars.com")) {
         await deleteFromCloudinary(oldAvatarUrl);
     }
 
@@ -352,11 +354,8 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 
 
-// UPDATE USER COVER IMAGE 
-
+// Update User Cover Image
 const updateUserCoverImage = asyncHandler(async (req, res) => {
-
-    // 1. Multer se local file path nikaalo
     const coverImageLocalPath = req.file?.path;
 
     if (!coverImageLocalPath) {
@@ -370,12 +369,17 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Error while uploading cover image on Cloudinary");
     }
 
-    // Store the old cover image URL for deletion
+    // Store the old cover image URL before update for cleanup
     const oldCoverImageUrl = req.user?.coverImage;
 
-    // Update the cover image URL in the database
+    // Persist the new cover image URL in the database
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: { coverImage: coverImage.url } },
+        { new: true }
+    ).select("-password -refreshToken");
 
-    // 5. Purani photo Cloudinary se uda do
+    // Delete the old cover image from Cloudinary to free storage
     if (oldCoverImageUrl) {
         await deleteFromCloudinary(oldCoverImageUrl);
     }

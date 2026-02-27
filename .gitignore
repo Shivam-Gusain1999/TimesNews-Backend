@@ -73,7 +73,10 @@ Thumbs.db
 
 # --- CUSTOM PROJECT FILES ---
 
-# Multer Temporary Uploads 
-# (Folder rahega, par andar ki images git par nahi jayengi)
+# Multer Temporary Uploads
 public/temp/*
 !public/temp/.gitkeep
+
+# Winston Log Files
+logs/
+*.log

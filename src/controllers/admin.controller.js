@@ -5,6 +5,10 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ROLES, ROLE_VALUES } from "../constants/roles.constant.js";
 import { Article } from "../models/article.model.js";
 import { Category } from "../models/category.model.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+
+// Escape special regex characters from user input to prevent ReDoS attacks
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // 1. Get All Users (With Search & Role Filter)
 const getAllUsers = asyncHandler(async (req, res) => {
@@ -14,9 +18,9 @@ const getAllUsers = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { fullName: { $regex: search, $options: "i" } },
-            { email: { $regex: search, $options: "i" } },
-            { username: { $regex: search, $options: "i" } }
+            { fullName: { $regex: escapeRegex(search), $options: "i" } },
+            { email: { $regex: escapeRegex(search), $options: "i" } },
+            { username: { $regex: escapeRegex(search), $options: "i" } }
         ];
     }
 

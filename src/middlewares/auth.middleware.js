@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import { PERMISSIONS, ROLES } from "../constants/roles.constant.js";
 
 
-//  Verify JWT (Login Check)
+// Verify JWT (Authentication Check)
 
 const verifyJWT = asyncHandler(async (req, res, next) => {
     try {
@@ -30,30 +30,23 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     }
 });
 
-//  Verify Admin (Sirf 'admin' allow karega) 
-
+// Verify Admin (Only 'admin' role is allowed)
 const verifyAdmin = asyncHandler(async (req, res, next) => {
-    // req.user verifyJWT se aa raha hai
-    console.log("verifyAdmin checking user:", req.user._id, "role:", req.user.role);
     if (req.user.role !== ROLES.ADMIN) {
-        console.log("verifyAdmin failed: User is", req.user.role);
         throw new ApiError(403, "Access Denied! Admin rights required.");
     }
-    console.log("verifyAdmin passed");
     next();
 });
 
-//  Verify Publisher (Admin + Editor allow karega)
-
+// Verify Publisher (Admin + Editor can publish articles)
 const verifyPublisher = asyncHandler(async (req, res, next) => {
-    // Check karega: Kya user ka role 'CAN_PUBLISH' list mein hai?
     if (!PERMISSIONS.CAN_PUBLISH.includes(req.user.role)) {
         throw new ApiError(403, "Access Denied! You cannot publish articles.");
     }
     next();
 });
 
-//  Verify Staff (Admin + Editor + Reporter allow karega - Dashboard Access)
+// Verify Staff (Admin + Editor + Reporter — Dashboard Access)
 const verifyStaff = asyncHandler(async (req, res, next) => {
     // Allowed Roles: Admin, Editor, Reporter
     const allowedRoles = [ROLES.ADMIN, ROLES.EDITOR, ROLES.REPORTER];

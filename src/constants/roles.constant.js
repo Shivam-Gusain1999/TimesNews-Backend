@@ -6,12 +6,12 @@ export const ROLES = {
   USER: "user"            // Read Only & Comments
 };
 
-// Validation ke liye list
-export const ROLE_VALUES = Object.values(ROLES); // ['admin', 'editor', 'reporter', 'user']
+// All valid role values as an array for validation
+export const ROLE_VALUES = Object.values(ROLES);
 
-// Helper: Check karne ke liye ki kaun permission de sakta hai
+// Permission groups for role-based access control
 export const PERMISSIONS = {
-  CAN_PUBLISH: [ROLES.ADMIN, ROLES.EDITOR], // Sirf ye dono publish kar sakte hain
+  CAN_PUBLISH: [ROLES.ADMIN, ROLES.EDITOR],
   CAN_EDIT_OTHERS: [ROLES.ADMIN, ROLES.EDITOR],
   CAN_DELETE_USERS: [ROLES.ADMIN]
 };

@@ -4,27 +4,23 @@ import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { loginSchema, registerSchema } from "../validators/user.validator.js";
+import { authLimiter } from "../middlewares/rateLimiter.middleware.js";
 
 const router = Router();
 
-router.route("/register").post(validate(registerSchema),
+router.route("/register").post(
+    authLimiter,
     upload.fields([
-        {
-            name: "avatar", // Field name must match the frontend
-            maxCount: 1
-        },
-        {
-            name: "coverImage", // Field 'coverImage' from the frontend
-            maxCount: 1
-        }
+        { name: "avatar", maxCount: 1 },
+        { name: "coverImage", maxCount: 1 }
     ]),
-
+    validate(registerSchema),
     registerUser
 );
 
-router.route("/login").post(validate(loginSchema), loginUser)
+router.route("/login").post(authLimiter, validate(loginSchema), loginUser);
 router.route("/logout").post(verifyJWT, logoutUser)
-router.route("/refresh-token").post(refreshAccessToken)
+router.route("/refresh-token").post(authLimiter, refreshAccessToken)
 router.route("/change-password").post(verifyJWT, changeCurrentPassword)
 router.route("/current-user").get(verifyJWT, getCurrentUser)
 router.route("/update-account").patch(verifyJWT, updateAccountDetails)

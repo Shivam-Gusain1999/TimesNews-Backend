@@ -5,22 +5,21 @@ const categorySchema = new Schema(
         name: {
             type: String,
             required: true,
-            unique: true, // "Sports" aur "sports" alag nahi maane jayenge
+            unique: true,
             index: true
         },
         slug: {
             type: String,
             lowercase: true,
-            // Example: Agar name "Politics India" hai, toh slug "politics-india" hoga
+            index: true
         },
         owner: {
             type: Schema.Types.ObjectId,
-            ref: "User", // Kis Admin ne ye category banayi hai
+            ref: "User",
         },
-        // === SENIOR DEV ADDITION (Soft Delete) ===
         isArchived: {
             type: Boolean,
-            default: false // By default sab active rahenge (Delete nahi honge)
+            default: false
         }
     },
     {

@@ -6,6 +6,9 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ROLES, PERMISSIONS } from "../constants/roles.constant.js";
 
+// Escape special regex characters from user input to prevent ReDoS attacks
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // ============================================================================
 // 1. CREATE ARTICLE (Secure & Optimized)
 // ============================================================================
@@ -82,7 +85,7 @@ const getAllArticles = asyncHandler(async (req, res) => {
 
     // 1. Search Logic (Title match)
     if (search) {
-        query.title = { $regex: search, $options: "i" };
+        query.title = { $regex: escapeRegex(search), $options: "i" };
     }
 
     // 2. Category Filter (search by slug first, then fall back to case-insensitive name)
@@ -281,14 +284,13 @@ const incrementArticleView = asyncHandler(async (req, res) => {
 // 7. GET ALL ARTICLES (ADMIN) - No Status Restrictions
 // ============================================================================
 const getAllArticlesAdmin = asyncHandler(async (req, res) => {
-    console.log("getAllArticlesAdmin called");
     const { page = 1, limit = 10, search, status, category } = req.query;
 
     const query = {};
 
     // 1. Search Logic
     if (search) {
-        query.title = { $regex: search, $options: "i" };
+        query.title = { $regex: escapeRegex(search), $options: "i" };
     }
 
     // 2. Status Filter

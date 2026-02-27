@@ -6,21 +6,21 @@ import {
     getAllCommentsAdmin
 } from "../controllers/comment.controller.js";
 import { verifyJWT, verifyStaff } from "../middlewares/auth.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
+import { addCommentSchema } from "../validators/comment.validator.js";
 
 const router = Router();
 
-// Public Route (Read Comments)
+// Public — Read comments for an article
 router.route("/:articleId").get(getArticleComments);
 
-// Admin/Staff Route
+// Staff — View all comments across articles
 router.route("/admin/all").get(verifyJWT, verifyStaff, getAllCommentsAdmin);
 
-// Protected Routes (Write/Delete)
-// Note: router.use(verifyJWT) applies to all below, but we need mixed public/private
-// So we apply middleware specifically to protected routes
+// Protected — Add a comment (requires login + validation)
+router.route("/:articleId").post(verifyJWT, validate(addCommentSchema), addComment);
 
-router.route("/:articleId").post(verifyJWT, addComment);
-
+// Protected — Delete a comment (owner or moderator)
 router.route("/:commentId").delete(verifyJWT, deleteComment);
 
 export default router;

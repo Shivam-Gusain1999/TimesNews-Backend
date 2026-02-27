@@ -88,14 +88,14 @@ const userSchema = new Schema(
 
 
 
-// 1. Password Encryption (Pre-save Hook)
+// Password Encryption (Pre-save Hook)
 // Hash the password before saving to the database
+// Note: Mongoose 9 async hooks do NOT receive `next` — simply return to skip
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
 
   // Utilize 10 salt rounds for hashing
   this.password = await bcrypt.hash(this.password, 10);
-
 });
 
 // 2. Password Verification Method
