@@ -23,6 +23,10 @@ export const createArticleSchema = z.object({
         .string()
         .optional(),
 
+    status: z
+        .enum(["DRAFT", "PUBLISHED", "ARCHIVED", "BLOCKED"])
+        .optional(),
+
     isFeatured: z
         .union([z.boolean(), z.string()])
         .optional(),

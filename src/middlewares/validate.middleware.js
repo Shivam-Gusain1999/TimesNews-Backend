@@ -12,8 +12,9 @@ export const validate = (schema) => async (req, res, next) => {
         req.body = parseBody;
         next();
     } catch (err) {
-        // Zod returns multiple field-level errors — join them for a clear message
-        const message = err.errors.map((e) => e.message).join(", ");
+        // Zod v4 uses `err.issues`, Zod v3 uses `err.errors` — support both
+        const errors = err.issues || err.errors || [];
+        const message = errors.map((e) => e.message).join(", ") || "Validation failed";
         next(new ApiError(400, message));
     }
 };
