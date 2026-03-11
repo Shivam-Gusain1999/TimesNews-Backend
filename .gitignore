@@ -4,9 +4,6 @@ pnpm-lock.yaml
 yarn.lock
 
 # Environment variables (Sensitive Data 🔐)
-.env
-.env.test
-.env.production
 
 # Logs
 npm-debug.log*
@@ -80,3 +77,4 @@ public/temp/*
 # Winston Log Files
 logs/
 *.log
+config.bat
