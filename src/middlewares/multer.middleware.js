@@ -9,6 +9,8 @@ const ALLOWED_MIME_TYPES = [
   "image/gif",
   "image/webp",
   "image/svg+xml",
+  "image/heic",
+  "image/heif"
 ];
 
 // Disk storage configuration (temporary server storage before Cloudinary upload)
@@ -30,11 +32,18 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     cb(null, true);
+  } else if (!file.mimetype || file.mimetype === "application/octet-stream" || file.mimetype === "") {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".heic", ".heif"].includes(ext)) {
+      cb(null, true);
+      return;
+    }
+    cb(new ApiError(400, `Invalid file extension: ${ext}`), false);
   } else {
     cb(
       new ApiError(
         400,
-        `Invalid file type: ${file.mimetype}. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.`
+        `Invalid file type: ${file.mimetype}. Only JPEG, PNG, GIF, WebP, SVG, and HEIC images are allowed.`
       ),
       false
     );
@@ -45,6 +54,6 @@ export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size
+    fileSize: 20 * 1024 * 1024, // Increased to 20MB for high-res mobile photos
   },
 });
